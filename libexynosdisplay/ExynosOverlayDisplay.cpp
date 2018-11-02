@@ -445,7 +445,7 @@ int ExynosOverlayDisplay::set(hwc_display_contents_1_t* contents)
 
 int ExynosOverlayDisplay::getCompModeSwitch()
 {
-    unsigned int updateFps = 0;
+    unsigned int tot_win_size = 0, updateFps = 0;
     unsigned int lcd_size = this->mXres * this->mYres;
     uint64_t TimeStampDiff;
     float Temp;
@@ -618,11 +618,11 @@ void ExynosOverlayDisplay::skipStaticLayers(hwc_display_contents_1_t* contents)
     return;
 }
 
-void ExynosOverlayDisplay::forceYuvLayersToFb(hwc_display_contents_1_t *contents __unused)
+void ExynosOverlayDisplay::forceYuvLayersToFb(hwc_display_contents_1_t *contents)
 {
 }
 
-void ExynosOverlayDisplay::handleOffscreenRendering(hwc_layer_1_t &layer __unused)
+void ExynosOverlayDisplay::handleOffscreenRendering(hwc_layer_1_t &layer)
 {
 }
 
@@ -635,7 +635,7 @@ void ExynosOverlayDisplay::determineYuvOverlay(hwc_display_contents_1_t *content
     mHasCropSurface = false;
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
-        if (layer.handle) {
+        if (layer.handle && !(layer.flags & HWC_SKIP_LAYER)) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
             if (getDrmMode(handle->flags) != NO_DRM) {
                 this->mHasDrmSurface = true;
@@ -686,7 +686,7 @@ void ExynosOverlayDisplay::determineSupportedOverlays(hwc_display_contents_1_t *
             continue;
         }
 
-        if (layer.handle && i < (size_t)maxHwOverlays) {
+        if (layer.handle && i < maxHwOverlays && !(layer.flags & HWC_SKIP_LAYER)) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
             if ((int)get_yuv_planes(halFormatToV4L2Format(handle->format)) > 0) {
                 videoLayer = true;
@@ -900,7 +900,7 @@ void ExynosOverlayDisplay::assignWindows(hwc_display_contents_1_t *contents)
             }
         }
 
-        if (layer.handle) {
+        if (layer.handle && !(layer.flags & HWC_SKIP_LAYER)) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
             if (ExynosMPP::isFormatSupportedByGscOtf(handle->format)) {
                 /* in case of changing compostiontype form GSC to FRAMEBUFFER for yuv layer */
@@ -944,7 +944,7 @@ void ExynosOverlayDisplay::assignWindows(hwc_display_contents_1_t *contents)
     }
 }
 
-bool ExynosOverlayDisplay::assignGscLayer(hwc_layer_1_t &layer, int index __unused, int nextWindow)
+bool ExynosOverlayDisplay::assignGscLayer(hwc_layer_1_t &layer, int index, int nextWindow)
 {
     private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
     size_t gscIndex = 0;
@@ -990,7 +990,7 @@ bool ExynosOverlayDisplay::assignGscLayer(hwc_layer_1_t &layer, int index __unus
     return ret;
 }
 
-int ExynosOverlayDisplay::waitForRenderFinish(buffer_handle_t *handle __unused, int buffers __unused)
+int ExynosOverlayDisplay::waitForRenderFinish(buffer_handle_t *handle, int buffers)
 {
     return 0;
 }
@@ -1038,10 +1038,10 @@ int ExynosOverlayDisplay::postGscM2M(hwc_layer_1_t &layer, fb_win_config *config
     return 0;
 }
 
-int ExynosOverlayDisplay::postGscOtf(hwc_layer_1_t &layer __unused, fb_win_config *config __unused, int win_map __unused, int index)
+int ExynosOverlayDisplay::postGscOtf(hwc_layer_1_t &layer, fb_win_config *config, int win_map, int index)
 {
     exynos5_hwc_post_data_t *pdata = &mPostData;
-    int __unused gsc_idx = pdata->gsc_map[index].idx;
+    int gsc_idx = pdata->gsc_map[index].idx;
 
 #ifdef DECON_FB
     return -1;
@@ -1092,7 +1092,7 @@ void ExynosOverlayDisplay::handleStaticLayers(hwc_display_contents_1_t *contents
     }
 }
 
-int ExynosOverlayDisplay::getMPPForUHD(hwc_layer_1_t &layer __unused)
+int ExynosOverlayDisplay::getMPPForUHD(hwc_layer_1_t &layer)
 {
     return FIMD_GSC_IDX;
 }
@@ -1126,6 +1126,6 @@ void ExynosOverlayDisplay::freeMPP()
         mMPPs[i]->free();
 }
 
-void ExynosOverlayDisplay::handleTotalBandwidthOverload(hwc_display_contents_1_t *contents __unused)
+void ExynosOverlayDisplay::handleTotalBandwidthOverload(hwc_display_contents_1_t *contents)
 {
 }
